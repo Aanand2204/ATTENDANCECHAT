@@ -10,18 +10,21 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from Attendence.core.logger import get_logger
 from langchain_groq import ChatGroq
 
+from Attendence.core.config import get_env
+
 logger = get_logger(__name__)
 
 # --- LLM Setup ---
 # Note: Ensure GOOGLE_API_KEY is in .env or environment
 try:
     gemini_llm = ChatGroq(
-    model_name = "llama-3.3-70b-versatile",
-    temperature=0.3
+        api_key=get_env("GROQ_API_KEY"),
+        model_name="llama-3.3-70b-versatile",
+        temperature=0.3
     )
     
-except Exception:
-    logger.warning("Failed to initialize ChatGoogleGenerativeAI. Check API Key.")
+except Exception as e:
+    logger.warning(f"Failed to initialize ChatGroq: {e}. Check API Key.")
     gemini_llm = None
 
 # --- Load prompt examples ---
