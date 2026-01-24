@@ -1,16 +1,16 @@
 # Attendence/components/admin_ui.py
 import streamlit as st
 import pandas as pd
-from Attendence.services import auth_service, class_service, attendance_service, github_service
+from Attendence.services import auth_service, class_service, attendance_service, github_service, teacher_service
 from Attendence.core.logger import get_logger
 from Attendence.core.utils import current_ist_date
 
 logger = get_logger(__name__)
 
 def show_admin_panel():
-    st.set_page_config(page_title="Admin Panel", layout="wide", page_icon="👩‍🏫")
+    # st.set_page_config is handled in admin_main.py
     st.markdown("""
-        <h1 style='text-align: center; color: #4B8BBE;'>👩‍🏫 Admin Control Panel</h1>
+        <h1 style='text-align: center; color: #DC3545;'>🔑 Superadmin Control Panel</h1>
         <hr style='border-top: 1px solid #bbb;' />
     """, unsafe_allow_html=True)
 
@@ -30,53 +30,52 @@ def show_admin_panel():
                     st.error("Invalid credentials")
         return
 
-    # Sidebar
+    # Sidebar for Global Actions (Logout)
     with st.sidebar:
-        st.markdown("## ➕ Create Class")
-        class_input = st.text_input("New Class Name")
-        if st.button("➕ Add Class"):
-            if class_input.strip():
-                success, msg = class_service.create_class(class_input)
-                if success:
-                    st.success(msg)
-                    st.rerun()
-                else:
-                    st.warning(msg)
-
-        if st.button("🚪 Logout"):
+        st.write("Logged in as **Superadmin**")
+        if st.button("🚪 Logout", key="admin_logout"):
             st.session_state.admin_logged_in = False
             st.rerun()
 
-        st.markdown("## 🗑️ Delete Class")
-        delete_target = st.text_input("Enter class to delete")
-        
-        if "confirm_delete" not in st.session_state:
-            st.session_state.confirm_delete = None
+    # Tabs for Admin Functions
+    tab_classes, tab_teachers = st.tabs(["📚 Manage Classes", "👨‍🏫 Manage Teachers"])
 
-        if st.button("Delete This Class"):
-            if delete_target.strip():
-                st.session_state.confirm_delete = delete_target
-            else:
-                st.warning("Please enter a class name.")
+    with tab_classes:
+        _render_manage_classes()
 
-        if st.session_state.confirm_delete == delete_target and delete_target:
-            st.warning(f"Are you sure you want to delete '{delete_target}'? This cannot be undone.")
-            confirmation = st.text_input("Type DELETE to confirm", key="delete_confirm_input")
-            
-            if st.button("⚠️ CONFIRM DELETE"):
-                if confirmation == "DELETE":
-                    try:
-                        class_service.delete_class(delete_target)
-                        st.success(f"Class '{delete_target}' deleted.")
-                        st.session_state.confirm_delete = None
+    with tab_teachers:
+        _render_manage_teachers()
+
+def _render_manage_classes():
+    # Sidebar within tab context isn't ideal for everything, so we put actions in the main area or keep sidebar for global actions
+    # But to keep existing flow, we can use the sidebar or top columns
+    
+    col_add, col_del = st.columns(2)
+    with col_add:
+        with st.expander("➕ Create Class"):
+            class_input = st.text_input("New Class Name", key="new_class_input")
+            if st.button("Add Class"):
+                if class_input.strip():
+                    success, msg = class_service.create_class(class_input)
+                    if success:
+                        st.success(msg)
                         st.rerun()
-                    except Exception:
-                        st.error("Failed to delete class.")
-                else:
-                    st.error("Verification failed. Type DELETE exactly.")
-        elif st.session_state.confirm_delete:
-            # Clear if user changed the input
-            st.session_state.confirm_delete = None
+                    else:
+                        st.warning(msg)
+
+    with col_del:
+        with st.expander("🗑️ Delete Class"):
+             delete_target = st.text_input("Enter class to delete", key="del_class_input")
+             if st.button("Delete This Class"):
+                 if delete_target.strip():
+                     try:
+                         class_service.delete_class(delete_target)
+                         st.success(f"Class '{delete_target}' deleted.")
+                         st.rerun()
+                     except Exception:
+                         st.error("Failed to delete class.")
+
+    st.divider()
 
     # Class Controls
     try:
@@ -91,62 +90,46 @@ def show_admin_panel():
 
     class_names = [c["class_name"] for c in classes]
     
-    # Persist selection across reruns
+    # Persist selection
     if "admin_selected_class" not in st.session_state:
         st.session_state.admin_selected_class = class_names[0] if class_names else None
 
-    # Ensure selected class is still valid
+    # Sync
     if st.session_state.admin_selected_class not in class_names and class_names:
         st.session_state.admin_selected_class = class_names[0]
         
-    current_index = 0
-    if st.session_state.admin_selected_class in class_names:
-        current_index = class_names.index(st.session_state.admin_selected_class)
-
-    selected_class_name = st.selectbox(
-        "📚 Select a Class", 
-        class_names, 
-        index=current_index
-    )
-    
-    # Update state
+    selected_class_name = st.selectbox("📚 Select a Class to Manage", class_names, index=class_names.index(st.session_state.admin_selected_class) if st.session_state.admin_selected_class in class_names else 0)
     st.session_state.admin_selected_class = selected_class_name
+    
     config = next((c for c in classes if c["class_name"] == selected_class_name), None)
 
-    st.markdown(f"**Current Code:** `{config['code']}`")
-    st.markdown(f"**Current Limit:** `{config['daily_limit']}`")
+    st.markdown(f"**Current Code:** `{config['code']}` | **Limit:** `{config['daily_limit']}`")
 
     is_open = config.get("is_open", False)
-    other_open = [c["class_name"] for c in classes if c.get("is_open") and c["class_name"] != selected_class_name]
-
-    st.subheader("🛠️ Attendance Controls")
-    st.info(f"Status: {'OPEN' if is_open else 'CLOSED'}")
-    col1, col2 = st.columns(2)
-    with col1:
+    st.caption(f"Status: **{'OPEN' if is_open else 'CLOSED'}**")
+    
+    c1, c2 = st.columns(2)
+    with c1:
         if st.button("✅ Open Attendance"):
-            if other_open:
-                st.warning(f"Close other open classes: {', '.join(other_open)}")
-            else:
-                class_service.update_class_status(selected_class_name, True)
-                st.rerun()
-    with col2:
+             class_service.update_class_status(selected_class_name, True)
+             st.rerun()
+    with c2:
         if st.button("❌ Close Attendance"):
             class_service.update_class_status(selected_class_name, False)
             st.rerun()
 
-    with st.expander("🔄 Update Code & Limit"):
+    with st.expander("🔄 Update Settings"):
         new_code = st.text_input("New Code", value=config["code"])
         new_limit = st.number_input("New Limit", min_value=1, value=config["daily_limit"], step=1)
-        if st.button("📏 Save Settings"):
+        if st.button("Save Settings"):
             class_service.update_class_settings(selected_class_name, new_code, new_limit)
-            st.success("✅ Settings updated.")
+            st.success("Settings updated.")
             st.rerun()
 
-    # Matrix & Push
+    # Matrix
     try:
         records = attendance_service.fetch_attendance_records(selected_class_name)
     except Exception:
-        st.error("Failed to fetch records.")
         return
 
     if records:
@@ -158,20 +141,65 @@ def show_admin_panel():
         pivot_df["roll_number"] = pivot_df["roll_number"].astype(int)
         pivot_df = pivot_df.sort_values("roll_number")
 
-        def highlight(val):
-            return "background-color:#d4edda;color:green" if val == "P" else "background-color:#f8d7da;color:red"
+        st.dataframe(pivot_df, width="stretch")
 
-        styled = pivot_df.style.map(highlight, subset=pivot_df.columns[2:])
-        st.dataframe(styled, width="stretch")
+        csv = pivot_df.to_csv(index=False)
+        st.download_button("Download CSV", csv.encode(), f"{selected_class_name}.csv", "text/csv")
 
-        csv_data = pivot_df.to_csv(index=False)
-        st.download_button("⬇️ Download CSV", csv_data.encode(), f"{selected_class_name}_matrix.csv", "text/csv")
+        if st.button("Push to GitHub"):
+            success, msg = github_service.push_attendance_matrix(selected_class_name, csv)
+            if success: st.success(msg)
+            else: st.error(msg)
+    else:
+        st.info("No records found.")
 
-        if st.button("🚀 Push to GitHub"):
-            success, msg = github_service.push_attendance_matrix(selected_class_name, csv_data)
+def _render_manage_teachers():
+    st.subheader("👨‍🏫 Teacher Management")
+    
+    # Add Teacher
+    with st.expander("➕ Add New Teacher"):
+        with st.form("add_teacher_form"):
+            new_t_user = st.text_input("Username")
+            new_t_pass = st.text_input("Password", type="password")
+            new_t_name = st.text_input("Full Name")
+            if st.form_submit_button("Create Teacher"):
+                success, msg = teacher_service.create_teacher(new_t_user, new_t_pass, new_t_name)
+                if success:
+                    st.success(msg)
+                    st.rerun()
+                else:
+                    st.error(msg)
+    
+    st.divider()
+    
+    # List & Edit Teachers
+    teachers = teacher_service.get_all_teachers()
+    if not teachers:
+        st.info("No teachers found.")
+        return
+
+    teacher_names = [t["username"] for t in teachers]
+    selected_teacher = st.selectbox("Select Teacher to Manage", teacher_names)
+    
+    if selected_teacher:
+        teacher_info = next(t for t in teachers if t["username"] == selected_teacher)
+        st.write(f"**Name:** {teacher_info['full_name']}")
+        
+        # Assign Classes
+        all_classes = [c["class_name"] for c in class_service.get_all_classes()]
+        assigned_classes = teacher_service.get_assigned_classes(selected_teacher)
+        
+        new_assignments = st.multiselect("Assign Classes", all_classes, default=[c for c in assigned_classes if c in all_classes])
+        
+        if st.button("💾 Update Assignments"):
+            success, msg = teacher_service.assign_classes(selected_teacher, new_assignments)
             if success:
                 st.success(msg)
             else:
                 st.error(msg)
-    else:
-        st.info("No attendance data yet.")
+
+        st.markdown("---")
+        if st.button("🗑️ Delete Teacher"):
+            if teacher_service.delete_teacher(selected_teacher):
+                st.success("Teacher deleted.")
+                st.rerun()

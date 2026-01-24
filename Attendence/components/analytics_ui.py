@@ -7,11 +7,14 @@ from Attendence.core.logger import get_logger
 
 logger = get_logger(__name__)
 
-def show_analytics_panel():
+def show_analytics_panel(allowed_classes=None):
     st.subheader("📊 Attendance Analytics")
 
     try:
         class_list = [c["class_name"] for c in class_service.get_all_classes()]
+        # Filter if allowed_classes is provided (Teacher mode)
+        if allowed_classes is not None:
+             class_list = [c for c in class_list if c in allowed_classes]
     except Exception:
         st.error("Failed to fetch class list.")
         return

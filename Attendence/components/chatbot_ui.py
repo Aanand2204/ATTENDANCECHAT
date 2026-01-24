@@ -4,12 +4,14 @@ import pandas as pd
 from Attendence.services import chatbot_service, class_service, attendance_service
 from Attendence.services.chatbot_service import AppState
 
-def show_chatbot_panel():
+def show_chatbot_panel(allowed_classes=None):
     st.header("🤖 Chat with Attendance Data")
 
     # --- Step 1: Dropdown for Class Files from Supabase ---
     try:
         class_names = [c["class_name"] for c in class_service.get_all_classes()]
+        if allowed_classes is not None:
+            class_names = [c for c in class_names if c in allowed_classes]
     except Exception as e:
         st.error(f"Failed to fetch classes: {e}")
         return
