@@ -426,3 +426,4 @@ Traceback (most recent call last):
   File "D:\Attendance_Chatbot\attendencev3\venv\Lib\site-packages\postgrest\_sync\request_builder.py", line 53, in execute
     raise APIError(dict(json_obj))
 postgrest.exceptions.APIError: {'message': "Could not find the table 'public.classroom_settings' in the schema cache", 'code': 'PGRST205', 'hint': None, 'details': None}
+2026-01-24 10:27:09,528 | WARNING | Attendence.services.chatbot_service | chatbot_service.py:24 | <module>() | Failed to initialize ChatGoogleGenerativeAI. Check API Key.
