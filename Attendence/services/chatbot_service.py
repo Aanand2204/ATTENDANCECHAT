@@ -85,62 +85,6 @@ def build_prompt(question: str, df: pd.DataFrame) -> str:
     head_sample = df.head(3).to_string(index=False)
     
     return f"""
-You are a pandas expert. You are given a DataFrame named `df` tracking student attendance.
-
-{context_summary}
-
-### Sample Data (First 3 rows)
-{head_sample}
-
-### Task
-Write a SINGLE line of Python code using pandas to answer the question.
-- The `df` is already loaded.
-- `date_cols` list is NOT pre-defined; filter columns using regex if needed (e.g. `[c for c in df.columns if re.match(r'\d{4}-\d{2}-\d{2}', str(c))]`).
-- Return ONLY the code. No markdown, no explanations.
-
-### Examples
-{EXAMPLES}
-
-### Question: {question}
-"""
-
-
-# --- Date Normalization ---
-def normalize_dates_in_question(inputs: dict, df) -> dict:
-    question = inputs["question"]
-
-    possible_phrases = re.findall(
-        r"\b(?:today|yesterday|tomorrow|\d+\s+days?\s+(?:ago|before|after)|next\s+\w+|on\s+\w+day|\d{4}-\d{2}-\d{2})\b",
-        question,
-        re.IGNORECASE,
-    )
-
-    for phrase in possible_phrases:
-        resolved = parse_date(phrase)
-        if resolved:
-            formatted = resolved.strftime("%Y-%m-%d")
-            # If future date, return error
-            if resolved > datetime.today():
-                 # We return error as result immediately
-                return {"error": f"⚠️ Attendance can't be checked for a future date: {formatted}"}
-            
-            # Check if date exists in columns
-            if formatted not in df.columns:
-                # Find latest date if possible
-                date_cols = [c for c in df.columns if re.match(r"\d{4}-\d{2}-\d{2}", str(c))]
-                latest = max(date_cols) if date_cols else "N/A"
-                return {"error": f"⚠️ Date '{formatted}' not found in records. Latest date is: {latest}"}
-            
-            question = question.replace(phrase, formatted)
-
-    return {"question": question}
-
-# --- Prompt Builder ---
-def build_prompt(question: str, df: pd.DataFrame) -> str:
-    context_summary = generate_context_summary(df)
-    head_sample = df.head(3).to_string(index=False)
-    
-    return f"""
 You are a smart attendance assistant. You have access to a pandas DataFrame `df`.
 
 {context_summary}
@@ -155,7 +99,7 @@ You are a smart attendance assistant. You have access to a pandas DataFrame `df`
 
 2. **Rules for Code**:
    - Use `df` variable.
-   - Filter `date_cols` dynamically if needed.
+   - `date_cols` list is pre-defined and available in the scope (contains column names like '2023-10-27').
    - Return ONLY the code prefixed with `CODE:`.
 
 ### Examples
@@ -210,8 +154,12 @@ def execute_code_node(state: AppState, df: pd.DataFrame) -> AppState:
         # No code to execute (was a greeting or error)
         return AppState(question=state.question, code=None, result=state.result)
     try:
+        # Determine date columns for the scope
+        date_cols = [c for c in df.columns if re.match(r"\d{4}-\d{2}-\d{2}", str(c))]
+        
         # Unsafe eval (as per user request domain)
-        result = eval(state.code, {"df": df.copy(), "pd": pd, "re": re})
+        # Inject date_cols into the scope so the LLM doesn't have to guess how to filter them
+        result = eval(state.code, {"df": df.copy(), "pd": pd, "re": re, "date_cols": date_cols})
         return AppState(question=state.question, code=state.code, result=result)
     except Exception as e:
         return AppState(question=state.question, code=state.code, result=f"ERROR executing code: {str(e)}")
