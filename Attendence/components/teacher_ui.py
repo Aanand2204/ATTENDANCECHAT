@@ -64,7 +64,13 @@ def show_teacher_panel():
         show_chatbot_panel(allowed_classes=assigned_classes)
 
 def _render_attendance_controls(assigned_classes):
-    st.subheader("📝 Take Attendance")
+    col_title, col_ref = st.columns([4, 1])
+    with col_title:
+        st.subheader("📝 Take Attendance")
+    with col_ref:
+        if st.button("🔄 Refresh", key="t_refresh_top"):
+            attendance_service.fetch_attendance_records.clear()
+            st.rerun()
     
     selected_class = st.selectbox("Select Class", assigned_classes, key="teacher_class_select")
     
@@ -77,20 +83,61 @@ def _render_attendance_controls(assigned_classes):
         return
 
     is_open = class_info.get("is_open", False)
-    st.info(f"Status: **{'OPEN' if is_open else 'CLOSED'}**")
+    status_md = f"Status: **{'OPEN' if is_open else 'CLOSED'}**"
+    if is_open and class_info.get("opened_by"):
+        status_md += f" (by {class_info['opened_by']})"
+    st.info(status_md)
     st.caption(f"Daily Limit: {class_info.get('daily_limit', 10)}")
 
     col1, col2 = st.columns(2)
     with col1:
         if st.button("✅ Open Attendance", key="t_open"):
-            # Optional: Check if other classes are open if we want to enforce single active class rule here too
-            class_service.update_class_status(selected_class, True)
-            st.rerun()
+            # Check if this specific class is already open (potentially by someone else)
+            if class_info.get("is_open"):
+                opener = class_info.get("opened_by", "another teacher")
+                st.error(f"⚠️ Class '{selected_class}' is already currently open by **{opener}**.")
+                # We stop here to match the requirement "No 2 teachers can open the same classroom"
+            else:
+                 # Check for other open classes assigned to this teacher (Single Active Class Restriction)
+                 # MUST ensure we only count classes opened BY THIS TEACHER
+                other_open = [
+                    c["class_name"] 
+                    for c in all_class_info 
+                    if c["class_name"] in assigned_classes 
+                    and c["class_name"] != selected_class 
+                    and c.get("is_open")
+                    and c.get("opened_by") == st.session_state.teacher_username
+                ]
+                
+                if other_open:
+                    st.error(f"⚠️ You already have attendance open for: **{other_open[0]}**. Please close it first.")
+                else:
+                    class_service.update_class_status(selected_class, True, st.session_state.teacher_username)
+                    st.rerun()
     with col2:
         if st.button("❌ Close Attendance", key="t_close"):
-            class_service.update_class_status(selected_class, False)
-            st.rerun()
+            opener = class_info.get("opened_by")
+            current_user = st.session_state.teacher_username
+            
+            if opener and opener != current_user:
+                st.error(f"⚠️ You cannot close this class. It was opened by **{opener}**.")
+            else:
+                class_service.update_class_status(selected_class, False)
+                st.rerun()
     
+    with st.expander("⚙️ Update Class Settings"):
+        st.caption("Change the attendance code or daily limit for this class.")
+        new_code = st.text_input("Attendance Code", value=class_info.get("code", ""), key="t_new_code")
+        new_limit = st.number_input("Daily Limit", min_value=1, value=int(class_info.get("daily_limit", 10)), step=1, key="t_new_limit")
+        if st.button("💾 Save Settings", key="t_save_settings"):
+            class_service.update_class_settings(selected_class, new_code, new_limit)
+            st.session_state.teacher_msg = "Settings updated successfully!"
+            st.rerun()
+            
+    if "teacher_msg" in st.session_state and st.session_state.teacher_msg:
+        st.success(st.session_state.teacher_msg)
+        del st.session_state.teacher_msg
+
     st.divider()
     st.write("### Today's Status")
     

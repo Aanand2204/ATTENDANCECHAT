@@ -5,7 +5,7 @@ from Attendence.core.logger import get_logger
 
 logger = get_logger(__name__)
 
-@st.cache_data(ttl=60)
+# @st.cache_data(ttl=60)
 def get_all_classes(supabase=None):
     if not supabase:
         supabase = create_supabase_client()
@@ -16,7 +16,7 @@ def get_all_classes(supabase=None):
         logger.exception("Failed to fetch classes")
         raise
 
-@st.cache_data(ttl=60)
+# @st.cache_data(ttl=60)
 def get_open_classes(supabase=None):
     if not supabase:
         supabase = create_supabase_client()
@@ -42,7 +42,7 @@ def create_class(class_name, code="1234", daily_limit=10, supabase=None):
             "daily_limit": daily_limit,
             "is_open": False
         }).execute()
-        get_all_classes.clear()
+
         return True, f"Class '{class_name}' created."
     except Exception as e:
         logger.exception(f"Failed to create class {class_name}")
@@ -55,20 +55,29 @@ def delete_class(class_name, supabase=None):
         supabase.table("attendance").delete().eq("class_name", class_name).execute()
         supabase.table("roll_map").delete().eq("class_name", class_name).execute()
         supabase.table("classroom_settings").delete().eq("class_name", class_name).execute()
-        get_all_classes.clear()
-        get_open_classes.clear()
+
+
         return True
     except Exception:
         logger.exception(f"Failed to delete class {class_name}")
         raise
 
-def update_class_status(class_name, is_open, supabase=None):
+def update_class_status(class_name, is_open, opened_by=None, supabase=None):
     if not supabase:
         supabase = create_supabase_client()
     try:
-        supabase.table("classroom_settings").update({"is_open": is_open}).eq("class_name", class_name).execute()
-        get_all_classes.clear()
-        get_open_classes.clear()
+        update_data = {"is_open": is_open}
+        if is_open:
+            update_data["opened_by"] = opened_by
+        else:
+            update_data["opened_by"] = ""
+            
+        result = supabase.table("classroom_settings").update(update_data).eq("class_name", class_name).execute()
+        # Optional: check result.data to confirm update
+        if not result.data:
+            logger.warning(f"Update returned no data for {class_name}")
+
+
     except Exception:
         logger.exception(f"Failed to update status for {class_name}")
         raise
@@ -78,7 +87,7 @@ def update_class_settings(class_name, code, daily_limit, supabase=None):
         supabase = create_supabase_client()
     try:
         supabase.table("classroom_settings").update({"code": code, "daily_limit": daily_limit}).eq("class_name", class_name).execute()
-        get_all_classes.clear()
+
     except Exception:
         logger.exception(f"Failed to update settings for {class_name}")
         raise

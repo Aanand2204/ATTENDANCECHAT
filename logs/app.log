@@ -427,3 +427,15 @@ Traceback (most recent call last):
     raise APIError(dict(json_obj))
 postgrest.exceptions.APIError: {'message': "Could not find the table 'public.classroom_settings' in the schema cache", 'code': 'PGRST205', 'hint': None, 'details': None}
 2026-01-24 10:27:09,528 | WARNING | Attendence.services.chatbot_service | chatbot_service.py:24 | <module>() | Failed to initialize ChatGoogleGenerativeAI. Check API Key.
+2026-01-25 01:19:46,868 | ERROR | Attendence.services.class_service | class_service.py:79 | update_class_status() | Failed to update status for MSc SY
+Traceback (most recent call last):
+  File "D:\Attendance_Chatbot\attendencev3\Attendence\services\class_service.py", line 76, in update_class_status
+    get_all_classes.clear()
+    ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'function' object has no attribute 'clear'
+2026-01-25 01:20:10,325 | ERROR | Attendence.services.class_service | class_service.py:79 | update_class_status() | Failed to update status for MSc SY
+Traceback (most recent call last):
+  File "D:\Attendance_Chatbot\attendencev3\Attendence\services\class_service.py", line 76, in update_class_status
+    get_all_classes.clear()
+    ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'function' object has no attribute 'clear'

@@ -12,7 +12,7 @@ def show_student_panel():
         st.title("🎓 Student Attendance Portal")
     with col_refresh:
         if st.button("🔄 Refresh"):
-             class_service.get_open_classes.clear()
+             # class_service.get_open_classes.clear()
              st.rerun()
 
     try:
@@ -117,7 +117,7 @@ def show_view_attendance_panel():
         st.subheader("📅 Check Your Attendance Record")
     with col_ref:
         if st.button("🔄 Refresh", key="refresh_view"):
-            class_service.get_open_classes.clear()
+            # class_service.get_open_classes.clear()
             st.rerun()
 
     try:

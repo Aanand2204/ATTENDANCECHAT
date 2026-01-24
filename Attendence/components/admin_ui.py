@@ -50,6 +50,25 @@ def _render_manage_classes():
     # Sidebar within tab context isn't ideal for everything, so we put actions in the main area or keep sidebar for global actions
     # But to keep existing flow, we can use the sidebar or top columns
     
+    # Message System
+    if "admin_msg" in st.session_state and st.session_state.admin_msg:
+        msg_type, msg_text = st.session_state.admin_msg
+        if msg_type == "success":
+            st.success(msg_text)
+        elif msg_type == "error":
+            st.error(msg_text)
+        elif msg_type == "warning":
+            st.warning(msg_text)
+        # Clear after showing
+        del st.session_state.admin_msg
+
+    # Fetch classes first so we can use them in delete dropdown
+    try:
+        classes = class_service.get_all_classes()
+    except Exception:
+        st.error("Failed to fetch classes.")
+        classes = []
+
     col_add, col_del = st.columns(2)
     with col_add:
         with st.expander("➕ Create Class"):
@@ -58,32 +77,28 @@ def _render_manage_classes():
                 if class_input.strip():
                     success, msg = class_service.create_class(class_input)
                     if success:
-                        st.success(msg)
+                        st.session_state.admin_msg = ("success", msg)
                         st.rerun()
                     else:
                         st.warning(msg)
 
     with col_del:
         with st.expander("🗑️ Delete Class"):
-             delete_target = st.text_input("Enter class to delete", key="del_class_input")
-             if st.button("Delete This Class"):
-                 if delete_target.strip():
-                     try:
-                         class_service.delete_class(delete_target)
-                         st.success(f"Class '{delete_target}' deleted.")
-                         st.rerun()
-                     except Exception:
-                         st.error("Failed to delete class.")
+             with st.form("delete_class_form"):
+                 class_opts = [c["class_name"] for c in classes]
+                 delete_target = st.selectbox("Select class to delete", class_opts, index=None, placeholder="Subject...", key="del_class_select")
+                 if st.form_submit_button("Delete This Class"):
+                     if delete_target:
+                         try:
+                             class_service.delete_class(delete_target)
+                             st.session_state.admin_msg = ("success", f"Class '{delete_target}' deleted.")
+                             st.rerun()
+                         except Exception:
+                             st.error("Failed to delete class.")
 
     st.divider()
 
     # Class Controls
-    try:
-        classes = class_service.get_all_classes()
-    except Exception:
-        st.error("Failed to fetch classes.")
-        return
-
     if not classes:
         st.warning("No classes found.")
         return
@@ -199,7 +214,23 @@ def _render_manage_teachers():
                 st.error(msg)
 
         st.markdown("---")
-        if st.button("🗑️ Delete Teacher"):
-            if teacher_service.delete_teacher(selected_teacher):
-                st.success("Teacher deleted.")
+        if "confirm_delete_teacher" not in st.session_state:
+            st.session_state.confirm_delete_teacher = False
+
+        if not st.session_state.confirm_delete_teacher:
+            if st.button("🗑️ Delete Teacher"):
+                st.session_state.confirm_delete_teacher = True
                 st.rerun()
+        else:
+            st.warning(f"⚠️ Are you sure you want to delete **{selected_teacher}**? This action cannot be undone.")
+            col_conf_1, col_conf_2 = st.columns(2)
+            with col_conf_1:
+                if st.button("✅ Yes, Delete"):
+                    if teacher_service.delete_teacher(selected_teacher):
+                        st.success(f"Teacher '{selected_teacher}' deleted.")
+                        st.session_state.confirm_delete_teacher = False
+                        st.rerun()
+            with col_conf_2:
+                if st.button("❌ Cancel"):
+                    st.session_state.confirm_delete_teacher = False
+                    st.rerun()
