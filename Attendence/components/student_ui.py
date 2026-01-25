@@ -43,6 +43,9 @@ def show_student_panel():
 
     required_code = settings["code"]
     daily_limit = settings["daily_limit"]
+    daily_limit = settings["daily_limit"]
+    raw_teacher = settings.get("opened_by")
+    current_teacher = raw_teacher.strip() if raw_teacher else None
 
     roll_number_raw = st.text_input("Roll Number").strip()
 
@@ -78,14 +81,14 @@ def show_student_panel():
             st.error("❌ Incorrect attendance code.")
             st.stop()
 
-        # Check existing
-        if attendance_service.check_existing_attendance(selected_class, roll_number, today):
-            st.error("❌ Attendance already marked today.")
+        # Check existing (scoped by teacher)
+        if attendance_service.check_existing_attendance(selected_class, roll_number, today, teacher=current_teacher):
+            st.error(f"❌ Attendance already marked for {current_teacher}'s lecture today.")
             st.stop()
             return
 
-        # Check limit
-        count = attendance_service.get_daily_count(selected_class, today)
+        # Check limit (scoped by teacher)
+        count = attendance_service.get_daily_count(selected_class, today, teacher=current_teacher)
         if count >= daily_limit:
             st.warning("⚠️ Attendance limit for today has been reached.")
             st.stop()
@@ -104,9 +107,9 @@ def show_student_panel():
              st.stop()
              return
 
-        # Mark attendance
+        # Mark attendance (scoped by teacher)
         try:
-            attendance_service.submit_attendance(selected_class, roll_number, name, today)
+            attendance_service.submit_attendance(selected_class, roll_number, name, today, teacher=current_teacher)
             st.success("✅ Attendance submitted successfully!")
         except Exception:
             st.error("Failed to submit attendance.")

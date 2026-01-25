@@ -21,7 +21,7 @@ def show_teacher_panel():
 
     if not st.session_state.teacher_logged_in:
         with st.form("teacher_login"):
-            username = st.text_input("Username")
+            username = st.text_input("Username").strip()
             password = st.text_input("Password", type="password")
             if st.form_submit_button("Log In"):
                 if auth_service.authenticate_teacher(username, password):
@@ -58,7 +58,7 @@ def show_teacher_panel():
         _render_attendance_controls(assigned_classes)
 
     with tabs[1]:
-        show_analytics_panel(allowed_classes=assigned_classes)
+        show_analytics_panel(allowed_classes=assigned_classes, teacher=st.session_state.teacher_username)
 
     with tabs[2]:
         show_chatbot_panel(allowed_classes=assigned_classes)
@@ -82,10 +82,20 @@ def _render_attendance_controls(assigned_classes):
         st.error("Class details not found.")
         return
 
-    is_open = class_info.get("is_open", False)
-    status_md = f"Status: **{'OPEN' if is_open else 'CLOSED'}**"
-    if is_open and class_info.get("opened_by"):
-        status_md += f" (by {class_info['opened_by']})"
+    # Logic for visibility: Only show OPEN if actually open AND opened by THIS teacher
+    real_is_open = class_info.get("is_open", False)
+    real_opener = class_info.get("opened_by", "")
+    
+    # Normalize strings for comparison
+    current_u = st.session_state.teacher_username.strip() if st.session_state.teacher_username else ""
+    opener_u = real_opener.strip() if real_opener else ""
+    
+    # Visible status
+    if real_is_open and opener_u == current_u:
+        status_md = f"Status: **OPEN** (by you)"
+    else:
+        status_md = "Status: **CLOSED**"
+        
     st.info(status_md)
     st.caption(f"Daily Limit: {class_info.get('daily_limit', 10)}")
 
@@ -116,10 +126,11 @@ def _render_attendance_controls(assigned_classes):
                     st.rerun()
     with col2:
         if st.button("❌ Close Attendance", key="t_close"):
-            opener = class_info.get("opened_by")
+            opener = class_info.get("opened_by", "")
             current_user = st.session_state.teacher_username
             
-            if opener and opener != current_user:
+            # Normalize for comparison
+            if opener and opener.strip() != current_user.strip():
                 st.error(f"⚠️ You cannot close this class. It was opened by **{opener}**.")
             else:
                 class_service.update_class_status(selected_class, False)
@@ -141,7 +152,20 @@ def _render_attendance_controls(assigned_classes):
     st.divider()
     st.write("### Today's Status")
     
-    records = attendance_service.fetch_attendance_records(selected_class)
+    current_u = st.session_state.teacher_username
+    # Filter by this teacher
+    records = attendance_service.fetch_attendance_records(selected_class, teacher=current_u)
+    
+    # DEBUG SECTION (Remove after fixing)
+    with st.expander("Debug Info"):
+        st.write(f"Current Teacher: '{current_u}'")
+        if records:
+            st.write("Raw Records First 5:", records[:5])
+            debug_teachers = {r.get("teacher") for r in records}
+            st.write(f"Teachers found in records: {debug_teachers}")
+        else:
+            st.write("No records returned.")
+            
     if records:
         df = pd.DataFrame(records)
         df["status"] = "P"

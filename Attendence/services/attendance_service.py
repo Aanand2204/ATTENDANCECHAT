@@ -7,12 +7,15 @@ from Attendence.core.utils import current_ist_date
 logger = get_logger(__name__)
 
 @st.cache_data(ttl=30)
-def fetch_attendance_records(class_name, supabase=None):
+def fetch_attendance_records(class_name, teacher=None, supabase=None):
     if not supabase:
         supabase = create_supabase_client()
     try:
-        # Defaults to ordering by date desc
-        response = supabase.table("attendance").select("*").eq("class_name", class_name).order("date", desc=True).execute()
+        query = supabase.table("attendance").select("*").eq("class_name", class_name)
+        if teacher:
+            query = query.eq("teacher", teacher)
+        
+        response = query.order("date", desc=True).execute()
         return response.data if response.data else []
     except Exception:
         logger.exception(f"Failed to fetch attendance for {class_name}")
@@ -41,42 +44,54 @@ def lock_roll_map(class_name, roll_number, name, supabase=None):
         logger.exception("Failed to lock roll map")
         raise
 
-def check_existing_attendance(class_name, roll_number, date=None, supabase=None):
+def check_existing_attendance(class_name, roll_number, date=None, teacher=None, supabase=None):
     if not date:
         date = current_ist_date()
     if not supabase:
         supabase = create_supabase_client()
     try:
-        response = supabase.table("attendance").select("*").eq("class_name", class_name).eq("roll_number", roll_number).eq("date", date).execute()
+        query = supabase.table("attendance").select("*").eq("class_name", class_name).eq("roll_number", roll_number).eq("date", date)
+        if teacher:
+            query = query.eq("teacher", teacher)
+            
+        response = query.execute()
         return bool(response.data)
     except Exception:
         logger.exception("Failed to check existing attendance")
         raise
 
-def get_daily_count(class_name, date=None, supabase=None):
+def get_daily_count(class_name, date=None, teacher=None, supabase=None):
     if not date:
         date = current_ist_date()
     if not supabase:
         supabase = create_supabase_client()
     try:
-        response = supabase.table("attendance").select("*", count="exact").eq("class_name", class_name).eq("date", date).execute()
+        query = supabase.table("attendance").select("*", count="exact").eq("class_name", class_name).eq("date", date)
+        if teacher:
+            query = query.eq("teacher", teacher)
+            
+        response = query.execute()
         return response.count or 0
     except Exception:
         logger.exception("Failed to get daily count")
         raise
 
-def submit_attendance(class_name, roll_number, name, date=None, supabase=None):
+def submit_attendance(class_name, roll_number, name, date=None, teacher=None, supabase=None):
     if not date:
         date = current_ist_date()
     if not supabase:
         supabase = create_supabase_client()
     try:
-        supabase.table("attendance").insert({
+        data = {
             "class_name": class_name,
             "roll_number": roll_number,
             "name": name,
             "date": date
-        }).execute()
+        }
+        if teacher:
+            data["teacher"] = teacher
+            
+        supabase.table("attendance").insert(data).execute()
         fetch_attendance_records.clear()
         return True
     except Exception:

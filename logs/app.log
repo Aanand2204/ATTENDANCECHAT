@@ -439,3 +439,10 @@ Traceback (most recent call last):
     get_all_classes.clear()
     ^^^^^^^^^^^^^^^^^^^^^
 AttributeError: 'function' object has no attribute 'clear'
+2026-01-25 10:19:46,785 | ERROR | Attendence.services.attendance_service | attendance_service.py:98 | submit_attendance() | Failed to submit attendance
+Traceback (most recent call last):
+  File "D:\Attendance_Chatbot\attendencev3\Attendence\services\attendance_service.py", line 94, in submit_attendance
+    supabase.table("attendance").insert(data).execute()
+  File "D:\Attendance_Chatbot\attendencev3\venv\Lib\site-packages\postgrest\_sync\request_builder.py", line 53, in execute
+    raise APIError(dict(json_obj))
+postgrest.exceptions.APIError: {'message': 'duplicate key value violates unique constraint "attendance_pkey"', 'code': '23505', 'hint': None, 'details': 'Key (class_name, roll_number, date)=(MSc SY, 1, 2026-01-25) already exists.'}

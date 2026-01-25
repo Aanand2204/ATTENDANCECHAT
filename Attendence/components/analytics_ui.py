@@ -7,7 +7,7 @@ from Attendence.core.logger import get_logger
 
 logger = get_logger(__name__)
 
-def show_analytics_panel(allowed_classes=None):
+def show_analytics_panel(allowed_classes=None, teacher=None):
     st.subheader("📊 Attendance Analytics")
 
     try:
@@ -26,7 +26,8 @@ def show_analytics_panel(allowed_classes=None):
     selected_class = st.selectbox("Select Class", class_list)
 
     try:
-        records = attendance_service.fetch_attendance_records(selected_class)
+        # Pass teacher filter if provided
+        records = attendance_service.fetch_attendance_records(selected_class, teacher=teacher)
     except Exception:
         st.error("Failed to fetch attendance data.")
         return
