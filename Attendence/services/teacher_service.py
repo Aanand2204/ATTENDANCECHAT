@@ -38,12 +38,17 @@ def delete_teacher(username, supabase=None):
         return False, str(e)
 
 @st.cache_data(ttl=60)
-def get_all_teachers(supabase=None):
+def get_all_teachers(admin_username=None, supabase=None):
     if not supabase:
         supabase = create_supabase_client()
     try:
-        response = supabase.table("teachers").select("*").execute()
-        return response.data if response.data else []
+        if admin_username:
+            # Join with admin_teachers
+            response = supabase.table("admin_teachers").select("teacher_username, teachers(*)").eq("admin_username", admin_username).execute()
+            return [r["teachers"] for r in response.data] if response.data else []
+        else:
+            response = supabase.table("teachers").select("*").execute()
+            return response.data if response.data else []
     except Exception:
         logger.exception("Failed to fetch teachers")
         return []

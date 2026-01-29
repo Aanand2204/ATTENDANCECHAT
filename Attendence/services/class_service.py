@@ -6,12 +6,17 @@ from Attendence.core.logger import get_logger
 logger = get_logger(__name__)
 
 # @st.cache_data(ttl=60)
-def get_all_classes(supabase=None):
+def get_all_classes(admin_username=None, supabase=None):
     if not supabase:
         supabase = create_supabase_client()
     try:
-        response = supabase.table("classroom_settings").select("*").execute()
-        return response.data if response.data else []
+        if admin_username:
+            # Join with admin_classes
+            response = supabase.table("admin_classes").select("class_name, classroom_settings(*)").eq("admin_username", admin_username).execute()
+            return [r["classroom_settings"] for r in response.data] if response.data else []
+        else:
+            response = supabase.table("classroom_settings").select("*").execute()
+            return response.data if response.data else []
     except Exception:
         logger.exception("Failed to fetch classes")
         raise
