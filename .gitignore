@@ -17,3 +17,9 @@ venv
 .env
 
 .streamlit
+
+Attendance_Chatbot_Test_Cases.pdf
+
+TEST_CASES_DETAILED.md
+
+generate_test_pdf.py
