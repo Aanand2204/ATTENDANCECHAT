@@ -1,37 +1,18 @@
-# admin_main.py
+# admin_main.py (Deprecated)
 import streamlit as st
-from Attendence.components.admin_ui import show_admin_panel
-from Attendence.components.analytics_ui import show_analytics_panel
-from Attendence.components.chatbot_ui import show_chatbot_panel
 
-st.set_page_config(
-    page_title="Admin Dashboard",
-    page_icon="🧠",
-    layout="wide"
-)
+st.set_page_config(page_title="Redirecting...", layout="centered")
 
-st.markdown(
-    """
-    <h1 style='text-align: center; color: #4B8BBE;'>🧠 Admin Dashboard</h1>
-    <hr style='border-top: 1px solid #bbb;'/></br>
-    """,
-    unsafe_allow_html=True
-)
+st.warning("### ⚠️ This page is deprecated.")
+st.write("The Admin dashboard has been separated into two distinct portals:")
 
-# Initialize session state for login if not present
-if "admin_logged_in" not in st.session_state:
-    st.session_state.admin_logged_in = False
+col1, col2 = st.columns(2)
+with col1:
+    st.info("🛡️ **Superadmin Portal**")
+    st.write("Run: `streamlit run superadmin_main.py`")
+with col2:
+    st.info("👨‍🏫 **HOD Portal**")
+    st.write("Run: `streamlit run hod_main.py`")
 
-if not st.session_state.admin_logged_in:
-    show_admin_panel()
-else:
-    admin_tab, analytics_tab , chatbot_tab = st.tabs(["🧑‍🏫 Admin Panel", "📊 Analytics", "🤖 Chatbot"])
-
-    with admin_tab:
-        show_admin_panel()
-
-    with analytics_tab:
-        show_analytics_panel()
-
-    with chatbot_tab:
-        show_chatbot_panel()
+st.divider()
+st.write("Please use the appropriate file for your role.")

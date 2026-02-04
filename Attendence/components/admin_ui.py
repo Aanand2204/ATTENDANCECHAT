@@ -7,49 +7,36 @@ from Attendence.core.utils import current_ist_date
 
 logger = get_logger(__name__)
 
-def show_admin_panel():
-    # st.set_page_config is handled in admin_main.py
+def show_superadmin_panel():
     st.markdown("""
-        <h1 style='text-align: center; color: #DC3545;'>🔑 Admin Control Panel</h1>
+        <h1 style='text-align: center; color: #DC3545;'>🛡️ Superadmin Panel</h1>
         <hr style='border-top: 1px solid #bbb;' />
     """, unsafe_allow_html=True)
 
-    # Login
-    if "admin_logged_in" not in st.session_state:
-        st.session_state.admin_logged_in = False
+    if "superadmin_logged_in" not in st.session_state:
+        st.session_state.superadmin_logged_in = False
 
-    if not st.session_state.admin_logged_in:
-        with st.form("admin_login"):
+    if not st.session_state.superadmin_logged_in:
+        with st.form("superadmin_login"):
             username = st.text_input("Username")
             password = st.text_input("Password", type="password")
             if st.form_submit_button("🔐 Login"):
                 success, role = auth_service.authenticate_admin(username, password)
-                if success:
-                    st.session_state.admin_logged_in = True
+                if success and role == "superadmin":
+                    st.session_state.superadmin_logged_in = True
                     st.session_state.admin_role = role
                     st.session_state.admin_username = username
                     st.rerun()
+                elif success:
+                    st.error("This portal is for Superadmins only.")
                 else:
                     st.error("Invalid credentials")
         return
 
-    # Sidebar for Global Actions (Logout)
-    role_display = "Superadmin" if st.session_state.admin_role == "superadmin" else "Admin (HOD)"
-    with st.sidebar:
-        st.write(f"Logged in as **{role_display}**")
-        st.write(f"User: `{st.session_state.admin_username}`")
-        if st.button("🚪 Logout", key="admin_logout"):
-            st.session_state.admin_logged_in = False
-            del st.session_state.admin_role
-            del st.session_state.admin_username
-            st.rerun()
+    # Sidebar
+    _render_admin_sidebar("superadmin_logged_in")
 
-    # Tabs for Admin Functions
-    tabs = ["📚 Manage Classes", "👨‍🏫 Manage Teachers"]
-    if st.session_state.admin_role == "superadmin":
-        tabs.append("🛡️ Manage Admins")
-    
-    tab_list = st.tabs(tabs)
+    tab_list = st.tabs(["📚 Manage Classes", "👨‍🏫 Manage Teachers", "🛡️ Manage Admins"])
 
     with tab_list[0]:
         _render_manage_classes()
@@ -57,9 +44,56 @@ def show_admin_panel():
     with tab_list[1]:
         _render_manage_teachers()
 
-    if st.session_state.admin_role == "superadmin":
-        with tab_list[2]:
-            _render_manage_admins()
+    with tab_list[2]:
+        _render_manage_admins()
+
+def show_hod_panel():
+    st.markdown("""
+        <h1 style='text-align: center; color: #007BFF;'>👨‍🏫 HOD Control Panel</h1>
+        <hr style='border-top: 1px solid #bbb;' />
+    """, unsafe_allow_html=True)
+
+    if "hod_logged_in" not in st.session_state:
+        st.session_state.hod_logged_in = False
+
+    if not st.session_state.hod_logged_in:
+        with st.form("hod_login"):
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            if st.form_submit_button("🔐 Login"):
+                success, role = auth_service.authenticate_admin(username, password)
+                if success and role == "admin":
+                    st.session_state.hod_logged_in = True
+                    st.session_state.admin_role = role
+                    st.session_state.admin_username = username
+                    st.rerun()
+                elif success:
+                    st.error("This portal is for HODs only.")
+                else:
+                    st.error("Invalid credentials")
+        return
+
+    # Sidebar
+    _render_admin_sidebar("hod_logged_in")
+
+    tab_list = st.tabs(["📚 Manage Classes", "👨‍🏫 Manage Teachers"])
+
+    with tab_list[0]:
+        _render_manage_classes()
+
+    with tab_list[1]:
+        _render_manage_teachers()
+
+def _render_admin_sidebar(login_key):
+    role_display = "Superadmin" if st.session_state.admin_role == "superadmin" else "Admin (HOD)"
+    with st.sidebar:
+        st.write(f"Logged in as **{role_display}**")
+        st.write(f"User: `{st.session_state.admin_username}`")
+        if st.button("🚪 Logout", key=f"{login_key}_logout"):
+            st.session_state[login_key] = False
+            del st.session_state.admin_role
+            del st.session_state.admin_username
+            st.rerun()
 
 def _render_manage_classes():
     # Sidebar within tab context isn't ideal for everything, so we put actions in the main area or keep sidebar for global actions
@@ -231,7 +265,7 @@ def _render_manage_teachers():
         all_classes = [c["class_name"] for c in class_service.get_all_classes(admin_username=admin_filter)]
         assigned_classes = teacher_service.get_assigned_classes(selected_teacher)
         
-        new_assignments = st.multiselect("Assign Classes", all_classes, default=[c for c in assigned_classes if c in all_classes])
+        new_assignments = st.multiselect("Assign Classes", all_classes, default=[c for c in assigned_classes if c in all_classes], key=f"teacher_classes_{selected_teacher}")
         
         if st.button("💾 Update Assignments"):
             success, msg = teacher_service.assign_classes(selected_teacher, new_assignments)
@@ -299,7 +333,7 @@ def _render_manage_admins():
         all_teachers = [t["username"] for t in teacher_service.get_all_teachers()]
         assigned_teachers = admin_service.get_admin_teachers(selected_hod)
         
-        new_t_assignments = st.multiselect("Assign Teachers", all_teachers, default=[t for t in assigned_teachers if t in all_teachers])
+        new_t_assignments = st.multiselect("Assign Teachers", all_teachers, default=[t for t in assigned_teachers if t in all_teachers], key=f"hod_teachers_{selected_hod}")
         
         if st.button("💾 Update Teacher Assignments"):
             success, msg = admin_service.assign_teachers_to_admin(selected_hod, new_t_assignments)
@@ -312,7 +346,7 @@ def _render_manage_admins():
         all_classes = [c["class_name"] for c in class_service.get_all_classes()]
         assigned_classes = admin_service.get_admin_classes(selected_hod)
         
-        new_c_assignments = st.multiselect("Assign Classes", all_classes, default=[c for c in assigned_classes if c in all_classes])
+        new_c_assignments = st.multiselect("Assign Classes", all_classes, default=[c for c in assigned_classes if c in all_classes], key=f"hod_classes_{selected_hod}")
         
         if st.button("💾 Update Class Assignments"):
             success, msg = admin_service.assign_classes_to_admin(selected_hod, new_c_assignments)
